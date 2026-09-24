@@ -237,6 +237,15 @@
               <button class="btn btn-secondary" id="load-demo">Load demo data</button>
               <button class="btn btn-danger" id="wipe-data">Delete everything</button>
             </div>
+            <hr class="rule">
+            <p class="muted">Import a backup or CSV straight from a web address —
+              easier than downloading a file first, especially on a phone.</p>
+            <div class="field-row">
+              <input class="input" id="import-url" value="data/journal-seed.json"
+                     autocomplete="off" spellcheck="false" inputmode="url"
+                     aria-label="URL to import from">
+              <button class="btn btn-primary" id="import-url-btn">Import</button>
+            </div>
             <p class="muted" id="storage-info"></p>
           </div>
         </div>

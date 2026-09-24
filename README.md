@@ -63,6 +63,12 @@ so iOS doesn't zoom when you focus a field, a full-width bottom sheet for the
 trade dialog, and safe-area padding around the notch and home indicator. None
 of that changes the desktop layout — it is gated on `pointer: coarse`.
 
+To load an existing journal onto a phone, skip the download-then-pick dance:
+**Settings → Data** has an **Import** button with a URL beside it, prefilled
+with `data/journal-seed.json`. One tap pulls the journal straight from the site
+it is served from. It accepts any JSON backup or CSV URL, so you can point it at
+your own backup anywhere that allows direct downloads.
+
 ### Your phone and your desktop are separate journals
 
 Storage is per-browser and per-device, so trades logged on your phone do **not**
@@ -82,6 +88,7 @@ regularly** — Settings → Export backup (JSON).
 |---|---|
 | CSV export (respects current filters) | Trades → Export CSV |
 | CSV import | Trades → Import CSV |
+| Import from a web address | Settings → Data → Import |
 | Full backup / restore | Settings → Data |
 | Sample data to explore the UI | Settings → Load demo data |
 

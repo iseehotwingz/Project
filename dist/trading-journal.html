@@ -457,6 +457,7 @@ tr:hover .row-btn { opacity: 1; }
   word-break: break-word;
 }
 .btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.rule { border: 0; border-top: 1px solid var(--border-soft); margin: 4px 0; }
 
 .acct-row {
   display: flex; align-items: center; gap: 8px;
@@ -779,6 +780,15 @@ tr:hover .row-btn { opacity: 1; }
               <button class="btn btn-secondary" id="export-csv-2">Export CSV</button>
               <button class="btn btn-secondary" id="load-demo">Load demo data</button>
               <button class="btn btn-danger" id="wipe-data">Delete everything</button>
+            </div>
+            <hr class="rule">
+            <p class="muted">Import a backup or CSV straight from a web address —
+              easier than downloading a file first, especially on a phone.</p>
+            <div class="field-row">
+              <input class="input" id="import-url" value="data/journal-seed.json"
+                     autocomplete="off" spellcheck="false" inputmode="url"
+                     aria-label="URL to import from">
+              <button class="btn btn-primary" id="import-url-btn">Import</button>
             </div>
             <p class="muted" id="storage-info"></p>
           </div>
@@ -3201,43 +3211,101 @@ tr:hover .row-btn { opacity: 1; }
     toast('Backup downloaded', 'ok');
   }
 
+  /**
+   * Apply imported text as either a full backup or a batch of trades.
+   * Shared by the file picker and the URL importer.
+   * `kind` is 'json' or 'csv'; 'auto' sniffs it from the content.
+   */
+  function applyImport(text, kind, sourceLabel) {
+    if (kind === 'auto') kind = /^\s*[{[]/.test(text) ? 'json' : 'csv';
+    var where = sourceLabel ? ' from ' + sourceLabel : '';
+
+    if (kind === 'json') {
+      var doc = JSON.parse(text);
+      if (!doc || !Array.isArray(doc.trades)) {
+        toast('That file is not a journal backup — no trades array found', 'err');
+        return false;
+      }
+      var n = doc.trades.length;
+      if (!confirm('Restoring this backup replaces all ' + S.trades().length +
+          ' trades currently in the journal with ' + n + where + '. Continue?')) return false;
+      S.replaceAll(doc);
+      applyTheme(S.settings().theme);
+      refreshOptions();
+      render();
+      toast('Restored ' + n + ' trades', 'ok');
+      return true;
+    }
+
+    var res = CSV.toTrades(text, state.filters.account || S.accounts()[0].name);
+    if (!res.trades.length) {
+      toast(res.errors[0] || 'No importable rows found', 'err');
+      return false;
+    }
+    S.addMany(res.trades);
+    refreshOptions();
+    render();
+    var msg = 'Imported ' + res.trades.length + ' trades';
+    if (res.skipped) msg += ' · ' + res.skipped + ' rows skipped';
+    toast(msg, res.skipped ? '' : 'ok');
+    if (res.errors.length) console.warn('CSV import notes:', res.errors);
+    return true;
+  }
+
   function handleFile(file) {
     var kind = state.pendingImportKind;
     var reader = new FileReader();
-
     reader.onload = function () {
-      var text = String(reader.result);
       try {
-        if (kind === 'json') {
-          var doc = JSON.parse(text);
-          var n = (doc.trades || []).length;
-          if (!confirm('Restoring this backup replaces all ' + S.trades().length +
-              ' trades currently in the journal with ' + n + ' from the file. Continue?')) return;
-          S.replaceAll(doc);
-          applyTheme(S.settings().theme);
-          refreshOptions();
-          render();
-          toast('Restored ' + n + ' trades', 'ok');
-        } else {
-          var res = CSV.toTrades(text, state.filters.account || S.accounts()[0].name);
-          if (!res.trades.length) {
-            toast(res.errors[0] || 'No importable rows found', 'err');
-            return;
-          }
-          S.addMany(res.trades);
-          refreshOptions();
-          render();
-          var msg = 'Imported ' + res.trades.length + ' trades';
-          if (res.skipped) msg += ' · ' + res.skipped + ' rows skipped';
-          toast(msg, res.skipped ? '' : 'ok');
-          if (res.errors.length) console.warn('CSV import notes:', res.errors);
-        }
+        applyImport(String(reader.result), kind, 'the file');
       } catch (e) {
         toast('Could not read that file: ' + e.message, 'err');
       }
     };
     reader.onerror = function () { toast('Could not read that file', 'err'); };
     reader.readAsText(file);
+  }
+
+  /**
+   * Fetch a backup or CSV over the network and import it.
+   * This exists mainly for phones: mobile browsers make downloading a file and
+   * then finding it in a file picker awkward, so pulling it straight from a URL
+   * turns setting up a second device into one tap.
+   */
+  function importFromUrl(url) {
+    url = (url || '').trim();
+    if (!url) { toast('Enter a URL to import from', 'err'); return; }
+
+    if (location.protocol === 'file:' && !/^https?:/i.test(url)) {
+      toast('Importing from a relative URL needs the app to be served over ' +
+            'http(s). Use the file picker instead.', 'err');
+      return;
+    }
+
+    var btn = $('#import-url-btn');
+    var label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Loading…';
+    var done = function () { btn.disabled = false; btn.textContent = label; };
+
+    fetch(url, { cache: 'no-store' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('server returned ' + r.status);
+        return r.text();
+      })
+      .then(function (text) {
+        var kind = /\.csv(\?|$)/i.test(url) ? 'csv'
+                 : (/\.json(\?|$)/i.test(url) ? 'json' : 'auto');
+        applyImport(text, kind, url.split('/').pop() || 'that URL');
+        done();
+      })
+      .catch(function (e) {
+        // A cross-origin host without CORS headers fails here too, and the
+        // browser deliberately hides why, so say what is usually wrong.
+        toast('Could not fetch that URL: ' + e.message +
+              '. If it is on another site it may not allow direct downloads.', 'err');
+        done();
+      });
   }
 
   /* -------------------------------- theme ------------------------------- */
@@ -3380,6 +3448,13 @@ tr:hover .row-btn { opacity: 1; }
       $('#file-input').value = '';
       $('#file-input').click();
     });
+    $('#import-url-btn').addEventListener('click', function () {
+      importFromUrl($('#import-url').value);
+    });
+    $('#import-url').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); importFromUrl($('#import-url').value); }
+    });
+
     $('#import-json').addEventListener('click', function () {
       state.pendingImportKind = 'json';
       $('#file-input').value = '';

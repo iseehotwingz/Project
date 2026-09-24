@@ -439,6 +439,7 @@ tr:hover .row-btn { opacity: 1; }
   word-break: break-word;
 }
 .btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.rule { border: 0; border-top: 1px solid var(--border-soft); margin: 4px 0; }
 
 .acct-row {
   display: flex; align-items: center; gap: 8px;
