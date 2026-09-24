@@ -1,0 +1,11 @@
+{
+  "name": "trading-journal",
+  "version": "1.0.0",
+  "description": "A dependency-free trading journal that runs from a single HTML file.",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "seed": "node tools/build-seed.js"
+  },
+  "license": "MIT"
+}
