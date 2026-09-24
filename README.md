@@ -72,11 +72,28 @@ missing a symbol, quantity or entry price are reported rather than guessed at.
 
 Gold is 100 oz per lot, so quantity is stored in **ounces** (0.01 lot = 1 oz),
 which makes `(exit − entry) × quantity × direction` reproduce the broker's
-profit figure exactly. `tools/build-seed.js` asserts that for every row and
-fails the build on any mismatch:
+profit figure exactly. The builder asserts that for every row and fails on any
+mismatch.
+
+It also reconciles the account. MT5's summary covers the **lifetime** of the
+account, including the period before the fresh start, so its $638.21 profit is
+not this journal's. Backing the pre-reset period out:
+
+| | |
+|---|---|
+| Fresh deposit, 2026.09.18 12:20:54 | $232.00 |
+| Left over from the pre-reset account | $0.10 |
+| **Opening equity** | **$232.10** |
+| Profit over the 25 journalled deals | $278.11 |
+| **Closing balance** | **$510.21** — matches MT5 exactly |
+
+The pre-reset period accounts for the other $360.10 of lifetime profit. Because
+the leftover from a reset account cannot exceed a rounding crumb, that figure
+doubles as a completeness check: a missing or duplicated deal pushes it out of
+range and the build fails. Run it with:
 
 ```
-node tools/build-seed.js
+npm run seed
 ```
 
 ## How the numbers are defined

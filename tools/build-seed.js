@@ -15,7 +15,16 @@ const path = require('path');
 
 const OZ_PER_LOT = 100;
 const ACCOUNT = 'MT5 XAUUSD';
-const START_BALANCE = 232.00;   // the 2026.09.18 "Int. Trans. (Add Funds)" row
+
+// MT5's summary covers the LIFETIME of the account, including the period
+// before the fresh start, so its profit figure is not this journal's.
+const MT5 = { deposit: 432.00, withdrawal: -560.00, profit: 638.21, balance: 510.21 };
+
+// The fresh start: "Int. Trans. (Add Funds)" on 2026.09.18 12:20:54. The old
+// account had not been withdrawn to exactly zero, so the real opening equity
+// is that deposit plus whatever was left over (reconciled below).
+const FRESH_DEPOSIT = 232.00;
+const START_BALANCE = 232.10;
 
 // lots, side, entry, exit, close time (local), profit as reported by MT5
 const DEALS = [
@@ -85,6 +94,34 @@ if (bad) { console.error(`${bad} rows do not reconcile — aborting.`); process.
 console.log(`✓ all ${trades.length} deals reconcile with the MT5 profit column`);
 console.log(`  transcribed profit: ${total.toFixed(2)}`);
 
+// ---- reconcile the fresh start against the account-level summary ---------
+// MT5's own cash identity must hold, or a summary figure was misread.
+const identity = +(MT5.deposit + MT5.withdrawal + MT5.profit).toFixed(2);
+if (Math.abs(identity - MT5.balance) > 0.005) {
+  console.error(`MT5 summary does not balance: ${identity} vs ${MT5.balance}`);
+  process.exit(1);
+}
+
+// Back out what the pre-reset account left behind. If deals since the reset
+// were missing, this residual would come out negative (or implausibly large),
+// because the leftover cannot exceed a rounding crumb.
+const oldProfit = +(MT5.profit - total).toFixed(2);
+const residual  = +((MT5.deposit - FRESH_DEPOSIT) + MT5.withdrawal + oldProfit).toFixed(2);
+const implied   = +(FRESH_DEPOSIT + residual).toFixed(2);
+
+if (residual < 0 || residual >= 1) {
+  console.error(`Implied leftover from the old account is ${residual} — that points ` +
+                `to deals missing from (or duplicated in) the list above.`);
+  process.exit(1);
+}
+if (Math.abs(implied - START_BALANCE) > 0.005) {
+  console.error(`START_BALANCE should be ${implied}, not ${START_BALANCE}.`);
+  process.exit(1);
+}
+console.log(`✓ fresh start reconciles: ${FRESH_DEPOSIT.toFixed(2)} deposited ` +
+            `+ ${residual.toFixed(2)} left from the old account = ${implied.toFixed(2)}`);
+console.log(`  pre-reset period accounts for the other ${oldProfit.toFixed(2)} of lifetime profit`);
+
 trades.forEach(t => delete t._reported);
 
 const doc = {
@@ -111,4 +148,11 @@ const s = Calc.stats(Calc.deriveAll(trades), START_BALANCE);
 console.log(`  net P&L ${s.netPnl.toFixed(2)} · ${s.wins}W/${s.losses}L · ` +
             `win rate ${s.winRate.toFixed(1)}% · PF ${s.profitFactor.toFixed(2)} · ` +
             `balance ${s.endBalance.toFixed(2)}`);
+
+// The journal's closing balance must land on the broker's, to the cent.
+if (Math.abs(s.endBalance - MT5.balance) > 0.005) {
+  console.error(`Closing balance ${s.endBalance.toFixed(2)} != MT5 ${MT5.balance.toFixed(2)}`);
+  process.exit(1);
+}
+console.log(`✓ closing balance matches the MT5 balance of ${MT5.balance.toFixed(2)}`);
 console.log('  wrote data/my-trades.csv and data/journal-seed.json');
