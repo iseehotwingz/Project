@@ -33,6 +33,45 @@ warns when the position risks more than your configured budget.
 Leave the exit price blank and the trade stays open: it is excluded from
 realised performance but counted in open risk.
 
+## Use it on your phone
+
+Three ways, best first.
+
+**1. Host it and install it (recommended).** The app is a plain static site, so
+GitHub Pages serves it as-is: repo **Settings → Pages → Source: Deploy from a
+branch**, pick the branch and `/ (root)`. Open the resulting URL on your phone,
+then:
+
+- **iPhone (Safari):** Share → *Add to Home Screen*
+- **Android (Chrome):** menu → *Install app* / *Add to Home screen*
+
+It then launches full-screen with its own icon, like any other app, and a
+service worker caches the whole shell so it **works with no connection** — on a
+plane, on the trading floor, anywhere. Verified by reloading with the network
+disabled: the journal and charts come straight from cache.
+
+**2. One file, no hosting.** `npm run build` produces
+`dist/trading-journal.html` — the entire app inlined into a single 153 KB file
+with no external references. AirDrop it, email it to yourself, or drop it in
+iCloud/Drive and open it. Everything works except the offline service worker,
+which needs a real URL (the file is already local, so it hardly matters).
+
+**3. Just open it.** Any browser, any device, straight off disk.
+
+Phones get larger controls automatically: 44px minimum tap targets, 16px inputs
+so iOS doesn't zoom when you focus a field, a full-width bottom sheet for the
+trade dialog, and safe-area padding around the notch and home indicator. None
+of that changes the desktop layout — it is gated on `pointer: coarse`.
+
+### Your phone and your desktop are separate journals
+
+Storage is per-browser and per-device, so trades logged on your phone do **not**
+appear on your laptop. That is the cost of keeping everything local and private.
+To move a journal across: **Settings → Export backup (JSON)** on one device,
+then **Settings → Restore backup** on the other. Pick one device as the place
+you actually log trades and treat the other as read-only, or you will end up
+merging by hand.
+
 ## Your data
 
 Everything lives in `localStorage` under the key `trading-journal/v1`. It is
@@ -137,6 +176,10 @@ js/charts.js      hand-rolled inline SVG charts
 js/csv.js         CSV parse/serialise               (pure, unit tested)
 js/demo.js        seeded sample data
 js/app.js         wiring, filtering, rendering
+sw.js             service worker: caches the shell for offline use
+manifest.webmanifest  home-screen install metadata
+icons/            app icons (180/192/512 px)
+dist/             single-file build (npm run build)
 tools/            seed builder for the MT5 history
 data/             seeded journal (JSON backup + CSV)
 test/             node --test suite

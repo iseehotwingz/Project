@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "test": "node --test test/*.test.js",
-    "seed": "node tools/build-seed.js"
+    "seed": "node tools/build-seed.js",
+    "build": "node tools/build-standalone.js"
   },
   "license": "MIT"
 }
