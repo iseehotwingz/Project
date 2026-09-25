@@ -632,6 +632,8 @@
   function renderSettings() {
     var st = S.settings();
     $('#pref-currency').value = st.currency;
+    $('#pref-autosync').checked = !!st.autoSync;
+    $('#import-url').value = st.syncUrl || $('#import-url').value;
     $('#pref-risk').value = st.riskPct;
     $('#pref-strategies').value = st.strategies.join('\n');
     $('#pref-mistakes').value = st.mistakeTags.join('\n');
@@ -914,12 +916,20 @@
       toast(res.errors[0] || 'No importable rows found', 'err');
       return false;
     }
-    S.addMany(res.trades);
+
+    // Merge, never blindly append: re-importing a history that has grown by a
+    // few trades should add those few, not a second copy of everything.
+    var r = S.mergeMany(res.trades);
     refreshOptions();
     render();
-    var msg = 'Imported ' + res.trades.length + ' trades';
-    if (res.skipped) msg += ' · ' + res.skipped + ' rows skipped';
-    toast(msg, res.skipped ? '' : 'ok');
+
+    var parts = [];
+    if (r.added) parts.push(r.added + ' new');
+    if (r.updated) parts.push(r.updated + ' updated');
+    if (r.unchanged) parts.push(r.unchanged + ' already there');
+    if (res.skipped) parts.push(res.skipped + ' skipped');
+    toast(parts.length ? 'Sync: ' + parts.join(' · ') : 'Nothing new to import',
+          r.added || r.updated ? 'ok' : '');
     if (res.errors.length) console.warn('CSV import notes:', res.errors);
     return true;
   }
@@ -969,6 +979,7 @@
         var kind = /\.csv(\?|$)/i.test(url) ? 'csv'
                  : (/\.json(\?|$)/i.test(url) ? 'json' : 'auto');
         applyImport(text, kind, url.split('/').pop() || 'that URL');
+        S.setSettings({ syncUrl: url });
         done();
       })
       .catch(function (e) {
@@ -977,6 +988,45 @@
         toast('Could not fetch that URL: ' + e.message +
               '. If it is on another site it may not allow direct downloads.', 'err');
         done();
+      });
+  }
+
+  /**
+   * Check the sync URL on open and merge anything new, without prompting.
+   * Deliberately additive only: a background sync may add or update trades,
+   * never replace the journal, so a bad or stale file cannot wipe your work.
+   * A JSON backup at the sync URL is treated as a list of trades for the same
+   * reason — "restore everything" stays a deliberate, confirmed action.
+   */
+  function autoSync() {
+    var st = S.settings();
+    if (!st.autoSync || !st.syncUrl) return;
+    if (location.protocol === 'file:' && !/^https?:/i.test(st.syncUrl)) return;
+
+    fetch(st.syncUrl, { cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+      .then(function (text) {
+        var trades;
+        if (/^\s*[{[]/.test(text)) {
+          var doc = JSON.parse(text);
+          trades = Array.isArray(doc) ? doc : doc.trades;
+          if (!Array.isArray(trades)) return;
+        } else {
+          var res = CSV.toTrades(text, S.accounts()[0].name);
+          trades = res.trades;
+        }
+        if (!trades.length) return;
+
+        var r2 = S.mergeMany(trades);
+        if (!r2.added && !r2.updated) return;        // stay quiet when nothing changed
+        refreshOptions();
+        render();
+        toast('Synced: ' + r2.added + ' new' +
+              (r2.updated ? ', ' + r2.updated + ' updated' : ''), 'ok');
+      })
+      .catch(function (e) {
+        // A failed background sync must never get in the way of using the app.
+        console.warn('Auto-sync skipped:', e.message);
       });
   }
 
@@ -1170,6 +1220,8 @@
 
     $('#save-prefs').addEventListener('click', function () {
       S.setSettings({
+        autoSync: $('#pref-autosync').checked,
+        syncUrl: $('#import-url').value.trim(),
         currency: $('#pref-currency').value || '$',
         riskPct: U.num($('#pref-risk').value) || 0,
         strategies: $('#pref-strategies').value.split('\n')
@@ -1215,6 +1267,7 @@
     });
 
     switchView('dashboard');
+    autoSync();
 
     if (!S.trades().length) {
       toast('Empty journal — load demo data from Settings to explore, or press "n" to log a trade.');

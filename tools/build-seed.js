@@ -55,6 +55,18 @@ const DEALS = [
   [0.05, 'buy',  4252.10, 4263.448, '2026-09-24 17:58:15',  56.74]
 ];
 
+// Guard against the same deal being transcribed twice from overlapping
+// screenshots — the history screens scroll, so batches share rows.
+const seen = new Set();
+DEALS.forEach(([lots, side, entry, exit, closeTime], i) => {
+  const k = [lots, side, entry, exit, closeTime].join('|');
+  if (seen.has(k)) {
+    console.error(`Duplicate deal at row ${i + 1}: ${k}`);
+    process.exit(1);
+  }
+  seen.add(k);
+});
+
 const trades = DEALS.map(([lots, side, entry, exit, closeTime, reported], i) => ({
   id: 'mt5_' + String(i + 1).padStart(3, '0'),
   symbol: 'XAUUSD',
@@ -78,6 +90,16 @@ const trades = DEALS.map(([lots, side, entry, exit, closeTime, reported], i) => 
   createdAt: Date.now(),
   _reported: reported
 }));
+
+// A deterministic identity per deal, matching what the app derives on import.
+// This is what lets a later, larger export merge in cleanly: trades already in
+// the journal are recognised and updated, and only genuinely new ones are added.
+trades.forEach(t => { t.externalId = Util.externalKey(t); });
+const ids = new Set(trades.map(t => t.externalId));
+if (ids.size !== trades.length) {
+  console.error('externalId collision — two deals hash to the same identity.');
+  process.exit(1);
+}
 
 // ---- verify every row against the broker's own profit figure --------------
 let bad = 0, total = 0;
@@ -132,6 +154,10 @@ const doc = {
     currency: '$',
     riskPct: 2,
     theme: 'dark',
+    // Check the published CSV on every open and pull in anything new. Additive
+    // only, so a sync can never overwrite notes or delete a trade.
+    syncUrl: 'data/my-trades.csv',
+    autoSync: true,
     strategies: ['Breakout', 'Pullback', 'Reversal', 'Trend continuation',
                  'Range fade', 'Scalp', 'News catalyst'],
     mistakeTags: ['FOMO entry', 'No stop', 'Moved stop', 'Oversized',
@@ -155,4 +181,5 @@ if (Math.abs(s.endBalance - MT5.balance) > 0.005) {
   process.exit(1);
 }
 console.log(`✓ closing balance matches the MT5 balance of ${MT5.balance.toFixed(2)}`);
+console.log(`✓ ${ids.size} distinct trade identities (safe to re-import)`);
 console.log('  wrote data/my-trades.csv and data/journal-seed.json');

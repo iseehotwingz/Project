@@ -91,6 +91,29 @@ with `data/journal-seed.json`. One tap pulls the journal straight from the site
 it is served from. It accepts any JSON backup or CSV URL, so you can point it at
 your own backup anywhere that allows direct downloads.
 
+### Keeping it up to date
+
+Re-importing is safe. Every trade carries a **stable identity** derived from the
+fill itself — instrument, side, size, both prices and the close time — so a
+later, longer export is merged rather than appended: trades already in the
+journal are recognised, only genuinely new ones are added, and a repeat import
+of the same file changes nothing.
+
+An update also **never overwrites your own work**. Notes, setup, tags, mistake
+tags, rating, stop and target are journal-side fields the broker knows nothing
+about, so a sync leaves them exactly as they were.
+
+With **Check this address every time the journal opens** enabled in Settings,
+the journal pulls the sync URL on load and merges anything new, saying so only
+when something actually changed. It is additive by design: a background sync
+can add or update trades, never replace the journal or delete anything, so a
+stale or broken file at that URL cannot cost you data. Restoring a full backup
+stays a deliberate, confirmed action.
+
+The practical loop: new trades are transcribed into `tools/build-seed.js`,
+`npm run seed` rebuilds `data/my-trades.csv` with its reconciliation checks, and
+the next time the journal opens it picks them up.
+
 ### Your phone and your desktop are separate journals
 
 Storage is per-browser and per-device, so trades logged on your phone do **not**

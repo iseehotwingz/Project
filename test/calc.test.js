@@ -360,3 +360,62 @@ test("the seeded MT5 month reconciles day by day", () => {
                  '2026-09-23': 217.68, '2026-09-24': 5.74 };
   close(Object.values(days).reduce((a, b) => a + b, 0), 278.11, 5e-3);
 });
+
+/* --------------------------- re-sync / de-duplication ------------------- */
+
+test('the same deal always hashes to the same identity', () => {
+  const deal = { symbol: 'XAUUSD', direction: 'short', quantity: 1,
+                 entryPrice: 4357.66, exitPrice: 4354.06,
+                 exitDate: '2026-09-18 17:06:01' };
+  assert.equal(U.externalKey(deal), U.externalKey({ ...deal }));
+  assert.equal(U.externalKey(deal), U.externalKey({ ...deal, notes: 'added later' }));
+});
+
+test('a different fill gets a different identity', () => {
+  const base = { symbol: 'XAUUSD', direction: 'short', quantity: 1,
+                 entryPrice: 4357.66, exitPrice: 4354.06,
+                 exitDate: '2026-09-18 17:06:01' };
+  const keys = new Set([
+    U.externalKey(base),
+    U.externalKey({ ...base, exitPrice: 4354.07 }),   // a cent apart
+    U.externalKey({ ...base, direction: 'long' }),
+    U.externalKey({ ...base, quantity: 5 }),
+    U.externalKey({ ...base, exitDate: '2026-09-18 17:06:04' })
+  ]);
+  assert.equal(keys.size, 5);
+});
+
+test('the seeded MT5 deals are all distinct', () => {
+  // Five of them close at the very same second, so this is a real risk.
+  const csv = require('fs').readFileSync(__dirname + '/../data/my-trades.csv', 'utf8');
+  const rows = CSV.toTrades(csv).trades;
+  assert.equal(rows.length, 25);
+  assert.equal(new Set(rows.map(t => t.externalId)).size, 25);
+});
+
+test('re-importing the identical export adds nothing', () => {
+  const csv = require('fs').readFileSync(__dirname + '/../data/my-trades.csv', 'utf8');
+  const first = CSV.toTrades(csv).trades;
+  const again = CSV.toTrades(csv).trades;
+  // Fresh ids each parse, but the broker identity must line up.
+  assert.deepEqual(first.map(t => t.externalId).sort(),
+                   again.map(t => t.externalId).sort());
+});
+
+test('a grown export adds only the new trades', () => {
+  const csv = require('fs').readFileSync(__dirname + '/../data/my-trades.csv', 'utf8');
+  const held = CSV.toTrades(csv).trades;
+  const heldKeys = new Set(held.map(t => U.externalKey(t)));
+
+  // Simulate the next batch of screenshots: the same 25 plus two new fills.
+  const grown = held.concat([
+    { symbol: 'XAUUSD', direction: 'long', quantity: 5, entryPrice: 4270.00,
+      exitPrice: 4281.50, exitDate: '2026-09-25 11:02:00' },
+    { symbol: 'XAUUSD', direction: 'short', quantity: 2, entryPrice: 4290.10,
+      exitPrice: 4286.40, exitDate: '2026-09-25 14:33:00' }
+  ]);
+
+  const fresh = grown.filter(t => !heldKeys.has(U.externalKey(t)));
+  assert.equal(fresh.length, 2);
+  assert.equal(grown.length, 27);
+});

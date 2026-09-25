@@ -8,9 +8,9 @@
   var U = root.Util || (typeof require !== 'undefined' ? require('./util.js') : null);
   var CSV = {};
 
-  CSV.COLUMNS = ['symbol', 'direction', 'quantity', 'entryPrice', 'exitPrice',
-    'entryDate', 'exitDate', 'stopPrice', 'targetPrice', 'fees', 'strategy',
-    'tags', 'mistakes', 'rating', 'notes', 'account'];
+  CSV.COLUMNS = ['externalId', 'symbol', 'direction', 'quantity', 'entryPrice',
+    'exitPrice', 'entryDate', 'exitDate', 'stopPrice', 'targetPrice', 'fees',
+    'strategy', 'tags', 'mistakes', 'rating', 'notes', 'account'];
 
   /** Parse a CSV document into an array of row arrays. */
   CSV.parse = function (text) {
@@ -51,6 +51,8 @@
 
   // Header aliases so exports from common platforms import without editing.
   var ALIASES = {
+    externalId: ['externalid', 'id', 'ticket', 'dealid', 'positionid', 'orderid',
+                 'tradeid', 'position', 'deal'],
     symbol: ['symbol', 'ticker', 'instrument', 'market', 'pair', 'asset'],
     direction: ['direction', 'side', 'type', 'longshort', 'buysell', 'position'],
     quantity: ['quantity', 'qty', 'size', 'shares', 'contracts', 'volume', 'units', 'lots'],
@@ -125,8 +127,8 @@
       var entryDate = U.parseDate(pick(r, 'entryDate'));
       var exitRaw = pick(r, 'exitPrice');
 
-      out.trades.push({
-        id: U.uid(),
+      var row = {
+        externalId: pick(r, 'externalId') || null,
         symbol: symbol.toUpperCase(),
         direction: normDirection(pick(r, 'direction')),
         quantity: Math.abs(qty),
@@ -144,7 +146,12 @@
         notes: pick(r, 'notes'),
         account: pick(r, 'account') || defaultAccount || 'Default',
         createdAt: Date.now()
-      });
+      };
+      row.id = U.uid();
+      // Derive a stable identity when the broker did not supply one, so the
+      // same row imported twice is recognised as the same trade.
+      row.externalId = row.externalId || U.externalKey(row);
+      out.trades.push(row);
     }
     return out;
   };
@@ -166,6 +173,7 @@
 
     derived.forEach(function (d) {
       lines.push([
+        cell(d.externalId),
         cell(d.symbol),
         cell(d.direction),
         cell(d.quantity),

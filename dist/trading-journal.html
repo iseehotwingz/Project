@@ -567,6 +567,9 @@ tr:hover .row-btn { opacity: 1; }
   word-break: break-word;
 }
 .btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.check { display: flex; gap: 9px; align-items: flex-start; font-size: 12.5px; color: var(--text-dim); cursor: pointer; }
+.check input { margin-top: 2px; flex: 0 0 auto; width: 16px; height: 16px; accent-color: var(--accent); }
+.check em { color: var(--text); font-style: normal; font-weight: 600; }
 .rule { border: 0; border-top: 1px solid var(--border-soft); margin: 4px 0; }
 
 .acct-row {
@@ -923,6 +926,12 @@ tr:hover .row-btn { opacity: 1; }
                      aria-label="URL to import from">
               <button class="btn btn-primary" id="import-url-btn">Import</button>
             </div>
+            <label class="check">
+              <input type="checkbox" id="pref-autosync">
+              <span>Check this address every time the journal opens, and pull in
+                    any new trades. Only ever adds or updates — never replaces
+                    what you already have. Save it with <em>Save preferences</em>.</span>
+            </label>
             <p class="muted" id="storage-info"></p>
           </div>
         </div>
@@ -1056,6 +1065,38 @@ tr:hover .row-btn { opacity: 1; }
   'use strict';
 
   var Util = {};
+
+  /**
+   * Stable short hash of a string (FNV-1a). Used to derive a deterministic id
+   * for an imported deal, so re-importing the same history recognises the
+   * trades it already holds instead of duplicating them.
+   */
+  Util.hash = function (s) {
+    var h = 0x811c9dc5;
+    s = String(s);
+    for (var i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+    }
+    return h.toString(36);
+  };
+
+  /**
+   * Identity of a trade as the broker reported it. Screenshots and CSV exports
+   * rarely carry a ticket number, so fall back to the fields that together
+   * identify a fill: instrument, side, size, both prices and the close time.
+   */
+  Util.externalKey = function (t) {
+    if (t.externalId) return String(t.externalId);
+    return 'k' + Util.hash([
+      String(t.symbol || '').toUpperCase(),
+      t.direction === 'short' ? 'S' : 'L',
+      Util.num(t.quantity),
+      Util.num(t.entryPrice),
+      Util.num(t.exitPrice),
+      Util.parseDate(t.exitDate) || Util.parseDate(t.entryDate) || ''
+    ].join('|'));
+  };
 
   Util.uid = function () {
     return 't_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
@@ -1259,6 +1300,8 @@ tr:hover .row-btn { opacity: 1; }
       settings: {
         currency: '$',
         riskPct: 1,
+        syncUrl: '',
+        autoSync: false,
         theme: 'dark',
         strategies: DEFAULT_STRATEGIES.slice(),
         mistakeTags: DEFAULT_MISTAKES.slice()
@@ -1334,6 +1377,60 @@ tr:hover .row-btn { opacity: 1; }
     remove: function (id) {
       this.data.trades = this.data.trades.filter(function (t) { return t.id !== id; });
       this.save();
+    },
+
+    /**
+     * Merge trades in by their broker identity: anything already held is
+     * updated in place, anything new is appended. This is what makes a repeat
+     * import safe — re-importing a history that has grown by three trades adds
+     * three rows, not a second copy of everything.
+     *
+     * Journal-only fields the broker cannot know (notes, setup, mistake tags,
+     * rating, stop, target) are preserved on an update, so re-syncing never
+     * wipes the review work that is the point of keeping a journal.
+     */
+    mergeMany: function (trades) {
+      var self = this;
+      var index = {};
+      this.data.trades.forEach(function (t, i) { index[U.externalKey(t)] = i; });
+
+      var added = 0, updated = 0, unchanged = 0;
+      trades.forEach(function (incoming) {
+        var key = U.externalKey(incoming);
+        var at = index[key];
+
+        if (at === undefined) {
+          incoming.id = incoming.id || U.uid();
+          incoming.externalId = key;
+          incoming.createdAt = incoming.createdAt || Date.now();
+          index[key] = self.data.trades.length;
+          self.data.trades.push(incoming);
+          added++;
+          return;
+        }
+
+        var existing = self.data.trades[at];
+        var keep = ['notes', 'strategy', 'tags', 'mistakes', 'rating',
+                    'stopPrice', 'targetPrice'];
+        var merged = Object.assign({}, existing, incoming);
+        keep.forEach(function (f) {
+          var had = existing[f];
+          var isSet = Array.isArray(had) ? had.length > 0
+                    : (had !== null && had !== undefined && had !== '');
+          if (isSet) merged[f] = had;
+        });
+        merged.id = existing.id;
+        merged.externalId = key;
+        merged.createdAt = existing.createdAt;
+
+        if (JSON.stringify(merged) === JSON.stringify(existing)) { unchanged++; return; }
+        merged.updatedAt = Date.now();
+        self.data.trades[at] = merged;
+        updated++;
+      });
+
+      if (added || updated) this.save();
+      return { added: added, updated: updated, unchanged: unchanged };
     },
 
     addMany: function (trades) {
@@ -1456,6 +1553,7 @@ tr:hover .row-btn { opacity: 1; }
 
     var d = {
       id: t.id,
+      externalId: t.externalId || null,
       symbol: (t.symbol || '').toUpperCase(),
       direction: t.direction === 'short' ? 'short' : 'long',
       account: t.account || 'Default',
@@ -2335,9 +2433,9 @@ tr:hover .row-btn { opacity: 1; }
   var U = root.Util || (typeof require !== 'undefined' ? require('./util.js') : null);
   var CSV = {};
 
-  CSV.COLUMNS = ['symbol', 'direction', 'quantity', 'entryPrice', 'exitPrice',
-    'entryDate', 'exitDate', 'stopPrice', 'targetPrice', 'fees', 'strategy',
-    'tags', 'mistakes', 'rating', 'notes', 'account'];
+  CSV.COLUMNS = ['externalId', 'symbol', 'direction', 'quantity', 'entryPrice',
+    'exitPrice', 'entryDate', 'exitDate', 'stopPrice', 'targetPrice', 'fees',
+    'strategy', 'tags', 'mistakes', 'rating', 'notes', 'account'];
 
   /** Parse a CSV document into an array of row arrays. */
   CSV.parse = function (text) {
@@ -2378,6 +2476,8 @@ tr:hover .row-btn { opacity: 1; }
 
   // Header aliases so exports from common platforms import without editing.
   var ALIASES = {
+    externalId: ['externalid', 'id', 'ticket', 'dealid', 'positionid', 'orderid',
+                 'tradeid', 'position', 'deal'],
     symbol: ['symbol', 'ticker', 'instrument', 'market', 'pair', 'asset'],
     direction: ['direction', 'side', 'type', 'longshort', 'buysell', 'position'],
     quantity: ['quantity', 'qty', 'size', 'shares', 'contracts', 'volume', 'units', 'lots'],
@@ -2452,8 +2552,8 @@ tr:hover .row-btn { opacity: 1; }
       var entryDate = U.parseDate(pick(r, 'entryDate'));
       var exitRaw = pick(r, 'exitPrice');
 
-      out.trades.push({
-        id: U.uid(),
+      var row = {
+        externalId: pick(r, 'externalId') || null,
         symbol: symbol.toUpperCase(),
         direction: normDirection(pick(r, 'direction')),
         quantity: Math.abs(qty),
@@ -2471,7 +2571,12 @@ tr:hover .row-btn { opacity: 1; }
         notes: pick(r, 'notes'),
         account: pick(r, 'account') || defaultAccount || 'Default',
         createdAt: Date.now()
-      });
+      };
+      row.id = U.uid();
+      // Derive a stable identity when the broker did not supply one, so the
+      // same row imported twice is recognised as the same trade.
+      row.externalId = row.externalId || U.externalKey(row);
+      out.trades.push(row);
     }
     return out;
   };
@@ -2493,6 +2598,7 @@ tr:hover .row-btn { opacity: 1; }
 
     derived.forEach(function (d) {
       lines.push([
+        cell(d.externalId),
         cell(d.symbol),
         cell(d.direction),
         cell(d.quantity),
@@ -3325,6 +3431,8 @@ tr:hover .row-btn { opacity: 1; }
   function renderSettings() {
     var st = S.settings();
     $('#pref-currency').value = st.currency;
+    $('#pref-autosync').checked = !!st.autoSync;
+    $('#import-url').value = st.syncUrl || $('#import-url').value;
     $('#pref-risk').value = st.riskPct;
     $('#pref-strategies').value = st.strategies.join('\n');
     $('#pref-mistakes').value = st.mistakeTags.join('\n');
@@ -3607,12 +3715,20 @@ tr:hover .row-btn { opacity: 1; }
       toast(res.errors[0] || 'No importable rows found', 'err');
       return false;
     }
-    S.addMany(res.trades);
+
+    // Merge, never blindly append: re-importing a history that has grown by a
+    // few trades should add those few, not a second copy of everything.
+    var r = S.mergeMany(res.trades);
     refreshOptions();
     render();
-    var msg = 'Imported ' + res.trades.length + ' trades';
-    if (res.skipped) msg += ' · ' + res.skipped + ' rows skipped';
-    toast(msg, res.skipped ? '' : 'ok');
+
+    var parts = [];
+    if (r.added) parts.push(r.added + ' new');
+    if (r.updated) parts.push(r.updated + ' updated');
+    if (r.unchanged) parts.push(r.unchanged + ' already there');
+    if (res.skipped) parts.push(res.skipped + ' skipped');
+    toast(parts.length ? 'Sync: ' + parts.join(' · ') : 'Nothing new to import',
+          r.added || r.updated ? 'ok' : '');
     if (res.errors.length) console.warn('CSV import notes:', res.errors);
     return true;
   }
@@ -3662,6 +3778,7 @@ tr:hover .row-btn { opacity: 1; }
         var kind = /\.csv(\?|$)/i.test(url) ? 'csv'
                  : (/\.json(\?|$)/i.test(url) ? 'json' : 'auto');
         applyImport(text, kind, url.split('/').pop() || 'that URL');
+        S.setSettings({ syncUrl: url });
         done();
       })
       .catch(function (e) {
@@ -3670,6 +3787,45 @@ tr:hover .row-btn { opacity: 1; }
         toast('Could not fetch that URL: ' + e.message +
               '. If it is on another site it may not allow direct downloads.', 'err');
         done();
+      });
+  }
+
+  /**
+   * Check the sync URL on open and merge anything new, without prompting.
+   * Deliberately additive only: a background sync may add or update trades,
+   * never replace the journal, so a bad or stale file cannot wipe your work.
+   * A JSON backup at the sync URL is treated as a list of trades for the same
+   * reason — "restore everything" stays a deliberate, confirmed action.
+   */
+  function autoSync() {
+    var st = S.settings();
+    if (!st.autoSync || !st.syncUrl) return;
+    if (location.protocol === 'file:' && !/^https?:/i.test(st.syncUrl)) return;
+
+    fetch(st.syncUrl, { cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+      .then(function (text) {
+        var trades;
+        if (/^\s*[{[]/.test(text)) {
+          var doc = JSON.parse(text);
+          trades = Array.isArray(doc) ? doc : doc.trades;
+          if (!Array.isArray(trades)) return;
+        } else {
+          var res = CSV.toTrades(text, S.accounts()[0].name);
+          trades = res.trades;
+        }
+        if (!trades.length) return;
+
+        var r2 = S.mergeMany(trades);
+        if (!r2.added && !r2.updated) return;        // stay quiet when nothing changed
+        refreshOptions();
+        render();
+        toast('Synced: ' + r2.added + ' new' +
+              (r2.updated ? ', ' + r2.updated + ' updated' : ''), 'ok');
+      })
+      .catch(function (e) {
+        // A failed background sync must never get in the way of using the app.
+        console.warn('Auto-sync skipped:', e.message);
       });
   }
 
@@ -3863,6 +4019,8 @@ tr:hover .row-btn { opacity: 1; }
 
     $('#save-prefs').addEventListener('click', function () {
       S.setSettings({
+        autoSync: $('#pref-autosync').checked,
+        syncUrl: $('#import-url').value.trim(),
         currency: $('#pref-currency').value || '$',
         riskPct: U.num($('#pref-risk').value) || 0,
         strategies: $('#pref-strategies').value.split('\n')
@@ -3908,6 +4066,7 @@ tr:hover .row-btn { opacity: 1; }
     });
 
     switchView('dashboard');
+    autoSync();
 
     if (!S.trades().length) {
       toast('Empty journal — load demo data from Settings to explore, or press "n" to log a trade.');

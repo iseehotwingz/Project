@@ -4,6 +4,38 @@
 
   var Util = {};
 
+  /**
+   * Stable short hash of a string (FNV-1a). Used to derive a deterministic id
+   * for an imported deal, so re-importing the same history recognises the
+   * trades it already holds instead of duplicating them.
+   */
+  Util.hash = function (s) {
+    var h = 0x811c9dc5;
+    s = String(s);
+    for (var i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+    }
+    return h.toString(36);
+  };
+
+  /**
+   * Identity of a trade as the broker reported it. Screenshots and CSV exports
+   * rarely carry a ticket number, so fall back to the fields that together
+   * identify a fill: instrument, side, size, both prices and the close time.
+   */
+  Util.externalKey = function (t) {
+    if (t.externalId) return String(t.externalId);
+    return 'k' + Util.hash([
+      String(t.symbol || '').toUpperCase(),
+      t.direction === 'short' ? 'S' : 'L',
+      Util.num(t.quantity),
+      Util.num(t.entryPrice),
+      Util.num(t.exitPrice),
+      Util.parseDate(t.exitDate) || Util.parseDate(t.entryDate) || ''
+    ].join('|'));
+  };
+
   Util.uid = function () {
     return 't_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
   };

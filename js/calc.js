@@ -24,6 +24,7 @@
 
     var d = {
       id: t.id,
+      externalId: t.externalId || null,
       symbol: (t.symbol || '').toUpperCase(),
       direction: t.direction === 'short' ? 'short' : 'long',
       account: t.account || 'Default',

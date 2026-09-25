@@ -26,6 +26,8 @@
       settings: {
         currency: '$',
         riskPct: 1,
+        syncUrl: '',
+        autoSync: false,
         theme: 'dark',
         strategies: DEFAULT_STRATEGIES.slice(),
         mistakeTags: DEFAULT_MISTAKES.slice()
@@ -101,6 +103,60 @@
     remove: function (id) {
       this.data.trades = this.data.trades.filter(function (t) { return t.id !== id; });
       this.save();
+    },
+
+    /**
+     * Merge trades in by their broker identity: anything already held is
+     * updated in place, anything new is appended. This is what makes a repeat
+     * import safe — re-importing a history that has grown by three trades adds
+     * three rows, not a second copy of everything.
+     *
+     * Journal-only fields the broker cannot know (notes, setup, mistake tags,
+     * rating, stop, target) are preserved on an update, so re-syncing never
+     * wipes the review work that is the point of keeping a journal.
+     */
+    mergeMany: function (trades) {
+      var self = this;
+      var index = {};
+      this.data.trades.forEach(function (t, i) { index[U.externalKey(t)] = i; });
+
+      var added = 0, updated = 0, unchanged = 0;
+      trades.forEach(function (incoming) {
+        var key = U.externalKey(incoming);
+        var at = index[key];
+
+        if (at === undefined) {
+          incoming.id = incoming.id || U.uid();
+          incoming.externalId = key;
+          incoming.createdAt = incoming.createdAt || Date.now();
+          index[key] = self.data.trades.length;
+          self.data.trades.push(incoming);
+          added++;
+          return;
+        }
+
+        var existing = self.data.trades[at];
+        var keep = ['notes', 'strategy', 'tags', 'mistakes', 'rating',
+                    'stopPrice', 'targetPrice'];
+        var merged = Object.assign({}, existing, incoming);
+        keep.forEach(function (f) {
+          var had = existing[f];
+          var isSet = Array.isArray(had) ? had.length > 0
+                    : (had !== null && had !== undefined && had !== '');
+          if (isSet) merged[f] = had;
+        });
+        merged.id = existing.id;
+        merged.externalId = key;
+        merged.createdAt = existing.createdAt;
+
+        if (JSON.stringify(merged) === JSON.stringify(existing)) { unchanged++; return; }
+        merged.updatedAt = Date.now();
+        self.data.trades[at] = merged;
+        updated++;
+      });
+
+      if (added || updated) this.save();
+      return { added: added, updated: updated, unchanged: unchanged };
     },
 
     addMany: function (trades) {
