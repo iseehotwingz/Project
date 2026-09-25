@@ -309,3 +309,54 @@ test('a zero-length hold reads as unknown, not as an instant trade', () => {
   assert.equal(U.fmtDuration(null), '—');
   assert.equal(U.fmtDuration(90000), '2m');
 });
+
+/* ------------------------- daily (calendar) buckets --------------------- */
+
+// The calendar groups trades by the day their P&L was realised. These tests
+// pin the property the view depends on: the days must sum to the total.
+
+const dayKey = d => U.fmtDate(d.exitDate !== null ? d.exitDate : d.entryDate);
+
+test('daily buckets sum to the overall net P&L', () => {
+  const derived = Calc.deriveAll([
+    mk(10, { d: '2026-09-18 17:06' }),
+    mk(20, { d: '2026-09-18 17:44' }),
+    mk(-5, { d: '2026-09-22 20:53' }),
+    mk(45, { d: '2026-09-23 10:30' })
+  ]);
+  const groups = Calc.groupBy(derived, dayKey);
+  assert.equal(groups.length, 3);                    // three distinct days
+  close(U.sum(groups, g => g.netPnl), 70);
+  close(Calc.stats(derived, 0).netPnl, 70);
+
+  const byDay = Object.fromEntries(groups.map(g => [g.key, g]));
+  close(byDay['2026-09-18'].netPnl, 30);             // two trades on one day
+  assert.equal(byDay['2026-09-18'].count, 2);
+});
+
+test('a trade held overnight lands on its exit day, not its entry day', () => {
+  const d = Calc.derive({
+    symbol: 'X', quantity: 1, entryPrice: 100, exitPrice: 110,
+    entryDate: '2026-09-18 22:00', exitDate: '2026-09-19 03:00'
+  });
+  assert.equal(dayKey(d), '2026-09-19');
+});
+
+test('an open trade sits on its entry day and adds no P&L', () => {
+  const d = Calc.derive({
+    symbol: 'X', quantity: 1, entryPrice: 100, exitPrice: null,
+    entryDate: '2026-09-24 10:15'
+  });
+  assert.equal(dayKey(d), '2026-09-24');
+  assert.equal(d.netPnl, null);
+  const g = Calc.groupBy([d], dayKey);
+  close(g[0].netPnl, 0);
+  assert.equal(g[0].count, 1);
+});
+
+test("the seeded MT5 month reconciles day by day", () => {
+  // The four trading days visible in the calendar for September 2026.
+  const days = { '2026-09-18': 64.14, '2026-09-22': -9.45,
+                 '2026-09-23': 217.68, '2026-09-24': 5.74 };
+  close(Object.values(days).reduce((a, b) => a + b, 0), 278.11, 5e-3);
+});

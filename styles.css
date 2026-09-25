@@ -311,6 +311,116 @@ tr:hover .row-btn { opacity: 1; }
 .empty { padding: 48px 18px; text-align: center; color: var(--text-dim); }
 .empty h3 { font-size: 15px; margin-bottom: 6px; color: var(--text); }
 
+/* ------------------------------ calendar -------------------------------- */
+
+.cal-head { flex-wrap: wrap; }
+.cal-nav { display: flex; gap: 6px; }
+.cal-head h2 { font-size: 15px; letter-spacing: -.01em; }
+.cal-summary { margin-left: auto; display: flex; align-items: baseline; gap: 12px; }
+.cal-sum-pnl { font-family: var(--mono); font-size: 17px; font-weight: 650; }
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr)) minmax(0, .82fr);
+  gap: 4px;
+  padding: 12px;
+}
+.cal-dow {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  font-weight: 600;
+  color: var(--text-faint);
+  text-align: center;
+  padding: 2px 0 6px;
+}
+
+.cal-day {
+  min-height: 92px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: 7px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--bg-input);
+  overflow: hidden;
+}
+.cal-day.is-outside { opacity: .32; }
+.cal-day.has-trades { cursor: pointer; border-color: transparent; }
+.cal-day.has-trades:hover { filter: brightness(1.1); }
+.cal-day.has-trades:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cal-day.is-today { box-shadow: inset 0 0 0 2px var(--accent); }
+
+.cal-date { font-size: 11px; font-weight: 600; opacity: .8; font-variant-numeric: tabular-nums; }
+.cal-pnl { font-family: var(--mono); font-size: 14px; font-weight: 700; margin-top: 1px; }
+.cal-count { font-size: 10.5px; opacity: .78; }
+.cal-tags { display: flex; flex-wrap: wrap; gap: 3px; margin-top: auto; padding-top: 4px; }
+.cal-tag, .cal-more {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, .22);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cal-more { background: none; opacity: .75; }
+
+.cal-week {
+  min-height: 92px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border-soft);
+  padding: 7px 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+.cal-week.is-empty { opacity: .45; }
+.cal-week-pnl { font-family: var(--mono); font-size: 13px; font-weight: 700; }
+.cal-week .cal-count { color: var(--text-dim); }
+
+/* Day drill-down chip in the filter bar. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 20px;
+  padding: 5px 11px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.pill:hover { filter: brightness(1.12); }
+.pill-x { opacity: .8; font-size: 11px; }
+
+@media (max-width: 900px) {
+  /* The week column is the first thing to go; the day cells matter more. */
+  .cal-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; padding: 8px; }
+  .cal-week, .cal-week-col { display: none; }
+  .cal-day { min-height: 74px; padding: 5px; }
+  .cal-tags { display: none; }
+  .cal-pnl { font-size: 11.5px; }
+  .cal-count { font-size: 9.5px; }
+}
+@media (max-width: 560px) {
+  .cal-day { min-height: 60px; }
+  .cal-pnl { font-size: 10.5px; }
+  .cal-count { display: none; }
+  .cal-dow { font-size: 9px; }
+}
+
 /* ----------------------------- breakdowns ------------------------------- */
 
 .bd-row {

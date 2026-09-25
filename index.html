@@ -28,6 +28,7 @@
     </div>
     <nav class="tabs" role="tablist">
       <button class="tab is-active" data-view="dashboard" role="tab">Dashboard</button>
+      <button class="tab" data-view="calendar" role="tab">Calendar</button>
       <button class="tab" data-view="trades" role="tab">Trades</button>
       <button class="tab" data-view="analytics" role="tab">Analytics</button>
       <button class="tab" data-view="settings" role="tab">Settings</button>
@@ -62,6 +63,9 @@
     </select>
     <select id="f-strategy" class="input input-sm" title="Setup"></select>
     <select id="f-symbol" class="input input-sm" title="Symbol"></select>
+    <button class="pill hidden" id="f-day-pill" title="Clear this day filter">
+      <span id="f-day-label"></span><span class="pill-x">✕</span>
+    </button>
     <button class="btn btn-ghost btn-sm" id="f-clear">Clear</button>
     <span class="filter-count" id="filter-count"></span>
   </section>
@@ -106,6 +110,22 @@
           </div>
           <div id="recent-trades"></div>
         </div>
+      </div>
+    </section>
+
+    <!-- ============================= CALENDAR ============================= -->
+    <section class="view" id="view-calendar">
+      <div class="panel">
+        <div class="panel-head cal-head">
+          <div class="cal-nav">
+            <button class="btn btn-secondary btn-sm" id="cal-prev" aria-label="Previous month">‹</button>
+            <button class="btn btn-secondary btn-sm" id="cal-today">Today</button>
+            <button class="btn btn-secondary btn-sm" id="cal-next" aria-label="Next month">›</button>
+          </div>
+          <h2 id="cal-label">—</h2>
+          <div class="cal-summary" id="cal-summary"></div>
+        </div>
+        <div id="calendar" role="grid" aria-label="Daily profit and loss"></div>
       </div>
     </section>
 

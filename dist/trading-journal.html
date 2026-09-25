@@ -329,6 +329,116 @@ tr:hover .row-btn { opacity: 1; }
 .empty { padding: 48px 18px; text-align: center; color: var(--text-dim); }
 .empty h3 { font-size: 15px; margin-bottom: 6px; color: var(--text); }
 
+/* ------------------------------ calendar -------------------------------- */
+
+.cal-head { flex-wrap: wrap; }
+.cal-nav { display: flex; gap: 6px; }
+.cal-head h2 { font-size: 15px; letter-spacing: -.01em; }
+.cal-summary { margin-left: auto; display: flex; align-items: baseline; gap: 12px; }
+.cal-sum-pnl { font-family: var(--mono); font-size: 17px; font-weight: 650; }
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr)) minmax(0, .82fr);
+  gap: 4px;
+  padding: 12px;
+}
+.cal-dow {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  font-weight: 600;
+  color: var(--text-faint);
+  text-align: center;
+  padding: 2px 0 6px;
+}
+
+.cal-day {
+  min-height: 92px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: 7px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--bg-input);
+  overflow: hidden;
+}
+.cal-day.is-outside { opacity: .32; }
+.cal-day.has-trades { cursor: pointer; border-color: transparent; }
+.cal-day.has-trades:hover { filter: brightness(1.1); }
+.cal-day.has-trades:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cal-day.is-today { box-shadow: inset 0 0 0 2px var(--accent); }
+
+.cal-date { font-size: 11px; font-weight: 600; opacity: .8; font-variant-numeric: tabular-nums; }
+.cal-pnl { font-family: var(--mono); font-size: 14px; font-weight: 700; margin-top: 1px; }
+.cal-count { font-size: 10.5px; opacity: .78; }
+.cal-tags { display: flex; flex-wrap: wrap; gap: 3px; margin-top: auto; padding-top: 4px; }
+.cal-tag, .cal-more {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, .22);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cal-more { background: none; opacity: .75; }
+
+.cal-week {
+  min-height: 92px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border-soft);
+  padding: 7px 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+.cal-week.is-empty { opacity: .45; }
+.cal-week-pnl { font-family: var(--mono); font-size: 13px; font-weight: 700; }
+.cal-week .cal-count { color: var(--text-dim); }
+
+/* Day drill-down chip in the filter bar. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 20px;
+  padding: 5px 11px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.pill:hover { filter: brightness(1.12); }
+.pill-x { opacity: .8; font-size: 11px; }
+
+@media (max-width: 900px) {
+  /* The week column is the first thing to go; the day cells matter more. */
+  .cal-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; padding: 8px; }
+  .cal-week, .cal-week-col { display: none; }
+  .cal-day { min-height: 74px; padding: 5px; }
+  .cal-tags { display: none; }
+  .cal-pnl { font-size: 11.5px; }
+  .cal-count { font-size: 9.5px; }
+}
+@media (max-width: 560px) {
+  .cal-day { min-height: 60px; }
+  .cal-pnl { font-size: 10.5px; }
+  .cal-count { display: none; }
+  .cal-dow { font-size: 9px; }
+}
+
 /* ----------------------------- breakdowns ------------------------------- */
 
 .bd-row {
@@ -575,6 +685,7 @@ tr:hover .row-btn { opacity: 1; }
     </div>
     <nav class="tabs" role="tablist">
       <button class="tab is-active" data-view="dashboard" role="tab">Dashboard</button>
+      <button class="tab" data-view="calendar" role="tab">Calendar</button>
       <button class="tab" data-view="trades" role="tab">Trades</button>
       <button class="tab" data-view="analytics" role="tab">Analytics</button>
       <button class="tab" data-view="settings" role="tab">Settings</button>
@@ -609,6 +720,9 @@ tr:hover .row-btn { opacity: 1; }
     </select>
     <select id="f-strategy" class="input input-sm" title="Setup"></select>
     <select id="f-symbol" class="input input-sm" title="Symbol"></select>
+    <button class="pill hidden" id="f-day-pill" title="Clear this day filter">
+      <span id="f-day-label"></span><span class="pill-x">✕</span>
+    </button>
     <button class="btn btn-ghost btn-sm" id="f-clear">Clear</button>
     <span class="filter-count" id="filter-count"></span>
   </section>
@@ -653,6 +767,22 @@ tr:hover .row-btn { opacity: 1; }
           </div>
           <div id="recent-trades"></div>
         </div>
+      </div>
+    </section>
+
+    <!-- ============================= CALENDAR ============================= -->
+    <section class="view" id="view-calendar">
+      <div class="panel">
+        <div class="panel-head cal-head">
+          <div class="cal-nav">
+            <button class="btn btn-secondary btn-sm" id="cal-prev" aria-label="Previous month">‹</button>
+            <button class="btn btn-secondary btn-sm" id="cal-today">Today</button>
+            <button class="btn btn-secondary btn-sm" id="cal-next" aria-label="Next month">›</button>
+          </div>
+          <h2 id="cal-label">—</h2>
+          <div class="cal-summary" id="cal-summary"></div>
+        </div>
+        <div id="calendar" role="grid" aria-label="Daily profit and loss"></div>
       </div>
     </section>
 
@@ -2573,9 +2703,11 @@ tr:hover .row-btn { opacity: 1; }
     view: 'dashboard',
     sort: { key: 'entryDate', dir: -1 },
     equityMode: 'currency',
+    cal: null,                  // {y, m} month on screen; set on first open
     editingId: null,
     pendingImportKind: null,
-    filters: { search: '', account: '', from: '', to: '', direction: '', status: '', result: '', strategy: '', symbol: '' }
+    filters: { search: '', account: '', from: '', to: '', direction: '', status: '',
+               result: '', strategy: '', symbol: '', day: '' }
   };
 
   var $ = function (sel) { return document.querySelector(sel); };
@@ -2631,6 +2763,10 @@ tr:hover .row-btn { opacity: 1; }
       if (f.strategy && d.strategy !== f.strategy) return false;
       if (f.symbol && d.symbol !== f.symbol) return false;
 
+      // Set by clicking a calendar cell. Matched on the same realised date the
+      // calendar buckets by, so a day's cell and its trade list always agree.
+      if (f.day && realisedDayKey(d) !== f.day) return false;
+
       // Date filter runs against the entry date — that is when the decision
       // was made, which is what a journal is reviewing.
       if (fromMs !== null && (d.entryDate === null || d.entryDate < fromMs)) return false;
@@ -2643,6 +2779,63 @@ tr:hover .row-btn { opacity: 1; }
       }
       return true;
     });
+  }
+
+  /**
+   * The day a trade's P&L lands on: its exit, falling back to its entry while
+   * it is still open. Every other aggregate (equity curve, monthly P&L) orders
+   * by the same moment, so the calendar agrees with them.
+   */
+  function realisedDayKey(d) {
+    var t = d.exitDate !== null ? d.exitDate : d.entryDate;
+    return t === null ? '' : U.fmtDate(t);
+  }
+
+  function hexToRgb(h) {
+    h = String(h).trim().replace('#', '');
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  }
+  function mixRgb(a1, b1, t) {
+    return [0, 1, 2].map(function (i) { return Math.round(a1[i] + (b1[i] - a1[i]) * t); });
+  }
+  function relLum(rgb) {
+    var s = rgb.map(function (v) {
+      v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * s[0] + 0.7152 * s[1] + 0.0722 * s[2];
+  }
+  function contrast(a1, b1) {
+    var l1 = relLum(a1), l2 = relLum(b1);
+    return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+  }
+
+  var INK_DARK = [11, 11, 11], INK_LIGHT = [242, 246, 250];
+
+  /**
+   * Choose readable text for a coloured cell, and darken or lighten the fill
+   * until it actually is readable.
+   *
+   * Picking ink by a fixed lightness threshold is not enough: a mid-tone fill
+   * is poorly served by BOTH black and white (measured 2.2:1 here), and no
+   * choice of text colour rescues it. So take the better of the two, then push
+   * the fill away from the middle — keeping its hue — until it clears 4.5:1.
+   */
+  function legibleFill(fill) {
+    var pick = function (f) {
+      var cd = contrast(f, INK_DARK), cl = contrast(f, INK_LIGHT);
+      return cd >= cl ? { ink: INK_DARK, ratio: cd } : { ink: INK_LIGHT, ratio: cl };
+    };
+    var p = pick(fill);
+    var toward = relLum(fill) < 0.5 ? [0, 0, 0] : [255, 255, 255];
+    for (var i = 0; i < 24 && p.ratio < 4.5; i++) {
+      fill = mixRgb(fill, toward, 0.07);
+      p = pick(fill);
+    }
+    return { bg: fill, ink: p.ink, ratio: p.ratio };
+  }
+  function cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   }
 
   function cur() { return S.settings().currency || '$'; }
@@ -2662,6 +2855,7 @@ tr:hover .row-btn { opacity: 1; }
       : d.length + ' of ' + S.trades().length + ' trades';
 
     if (state.view === 'dashboard') renderDashboard(d, stats);
+    if (state.view === 'calendar') renderCalendar(d);
     if (state.view === 'trades') renderTrades(d, stats);
     if (state.view === 'analytics') renderAnalytics(d, stats);
     if (state.view === 'settings') renderSettings();
@@ -2841,6 +3035,174 @@ tr:hover .row-btn { opacity: 1; }
       '<span>Win rate ' + (s.winRate === null ? '—' : U.fmtPct(s.winRate)) + '</span>' +
       (s.totalR !== null ? '<span>Total <b class="' + U.pnlClass(s.totalR) + '">' +
         U.fmtR(s.totalR) + '</b> over ' + s.tradesWithR + ' trades with a stop</span>' : '');
+  }
+
+  /* ------------------------------- calendar ----------------------------- */
+
+  var DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  /** Month to open on: the most recent trade's month, else this month. */
+  function defaultCalMonth() {
+    var all = C.deriveAll(S.trades());
+    var latest = null;
+    all.forEach(function (d) {
+      var t = d.exitDate !== null ? d.exitDate : d.entryDate;
+      if (t !== null && (latest === null || t > latest)) latest = t;
+    });
+    var d0 = latest === null ? new Date() : new Date(latest);
+    return { y: d0.getFullYear(), m: d0.getMonth() };
+  }
+
+  function renderCalendar(derived) {
+    if (!state.cal) state.cal = defaultCalMonth();
+    var y = state.cal.y, m = state.cal.m;
+
+    // Bucket the filtered trades by realised day.
+    var byDay = {};
+    derived.forEach(function (d) {
+      var k = realisedDayKey(d);
+      if (!k) return;
+      if (!byDay[k]) byDay[k] = { pnl: 0, n: 0, open: 0, setups: {} };
+      var b = byDay[k];
+      b.n++;
+      if (d.isOpen) b.open++; else b.pnl += d.netPnl;
+      if (d.strategy) b.setups[d.strategy] = (b.setups[d.strategy] || 0) + 1;
+    });
+
+    var first = new Date(y, m, 1);
+    var gridStart = new Date(y, m, 1 - first.getDay());          // back to Sunday
+    var weeks = [];
+    var cursor = new Date(gridStart);
+    // Always 6 rows would leave a trailing empty week; build only what is needed.
+    while (true) {
+      var week = [];
+      for (var i = 0; i < 7; i++) {
+        week.push(new Date(cursor));
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      weeks.push(week);
+      if (cursor.getMonth() !== m && cursor > new Date(y, m + 1, 0)) break;
+      if (weeks.length >= 6) break;
+    }
+
+    // Scale the tint by the busiest day in this month only, so a quiet month
+    // is not washed out by an outlier elsewhere in the history.
+    var maxAbs = 0, monthPnl = 0, monthTrades = 0, monthDays = 0;
+    weeks.forEach(function (w) {
+      w.forEach(function (day) {
+        if (day.getMonth() !== m) return;
+        var b = byDay[U.fmtDate(day.getTime())];
+        if (!b) return;
+        maxAbs = Math.max(maxAbs, Math.abs(b.pnl));
+        monthPnl += b.pnl;
+        monthTrades += b.n;
+        monthDays++;
+      });
+    });
+
+    var surface = hexToRgb(cssVar('--bg-elev') || '#161b22');
+    var winRgb = hexToRgb(cssVar('--win') || '#3ddc97');
+    var lossRgb = hexToRgb(cssVar('--loss') || '#c0303c');
+    var todayKey = U.fmtDate(Date.now());
+
+    var html = '<div class="cal-grid">';
+    DOW.forEach(function (d) { html += '<div class="cal-dow">' + d + '</div>'; });
+    html += '<div class="cal-dow cal-week-col">Week</div>';
+
+    weeks.forEach(function (week) {
+      var wPnl = 0, wN = 0, wHas = false;
+      week.forEach(function (day) {
+        var b = byDay[U.fmtDate(day.getTime())];
+        if (b) { wPnl += b.pnl; wN += b.n; wHas = true; }
+      });
+
+      week.forEach(function (day) {
+        var key = U.fmtDate(day.getTime());
+        var inMonth = day.getMonth() === m;
+        var b = byDay[key];
+        var cls = 'cal-day' + (inMonth ? '' : ' is-outside') + (key === todayKey ? ' is-today' : '');
+        var style = '', ink = '';
+
+        if (b && inMonth) {
+          var t = 0.22 + 0.62 * (maxAbs ? Math.abs(b.pnl) / maxAbs : 0);
+          var base = Math.abs(b.pnl) < 1e-9 ? surface
+                   : mixRgb(surface, b.pnl > 0 ? winRgb : lossRgb, t);
+          var fill = legibleFill(base);
+          style = ' style="background:rgb(' + fill.bg.join(',') +
+                  ');color:rgb(' + fill.ink.join(',') + ')"';
+          cls += ' has-trades';
+        }
+
+        html += '<div class="' + cls + '"' + style +
+                (b && inMonth ? ' role="button" tabindex="0" data-day="' + key + '"' : '') + '>';
+        html += '<div class="cal-date">' + day.getDate() + '</div>';
+
+        if (b && inMonth) {
+          html += '<div class="cal-pnl">' + (b.n > b.open || b.pnl
+                    ? signedMoney(b.pnl, Math.abs(b.pnl) >= 1000 ? 0 : 2) : '—') + '</div>';
+          html += '<div class="cal-count">' + b.n + ' trade' + (b.n === 1 ? '' : 's') +
+                  (b.open ? ' · ' + b.open + ' open' : '') + '</div>';
+          var names = Object.keys(b.setups).sort(function (p, q) { return b.setups[q] - b.setups[p]; });
+          if (names.length) {
+            html += '<div class="cal-tags">' +
+              names.slice(0, 2).map(function (n) {
+                return '<span class="cal-tag">' + U.esc(n) + '</span>';
+              }).join('') +
+              (names.length > 2 ? '<span class="cal-more">+' + (names.length - 2) + '</span>' : '') +
+              '</div>';
+          }
+        }
+        html += '</div>';
+      });
+
+      html += '<div class="cal-week' + (wHas ? '' : ' is-empty') + '">' +
+                (wHas
+                  ? '<div class="cal-week-pnl ' + U.pnlClass(wPnl) + '">' +
+                      signedMoney(wPnl, Math.abs(wPnl) >= 1000 ? 0 : 2) + '</div>' +
+                    '<div class="cal-count">' + wN + ' trade' + (wN === 1 ? '' : 's') + '</div>'
+                  : '<div class="cal-count">—</div>') +
+              '</div>';
+    });
+    html += '</div>';
+
+    $('#calendar').innerHTML = html;
+
+    $('#cal-label').textContent =
+      new Date(y, m, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    $('#cal-summary').innerHTML =
+      '<span class="cal-sum-pnl ' + U.pnlClass(monthPnl) + '">' + signedMoney(monthPnl) + '</span>' +
+      '<span class="muted">' + monthTrades + ' trade' + (monthTrades === 1 ? '' : 's') +
+      ' over ' + monthDays + ' day' + (monthDays === 1 ? '' : 's') + '</span>';
+
+    // Clicking a day drills into exactly the trades that made up that cell.
+    $$('#calendar [data-day]').forEach(function (cell) {
+      var go = function () {
+        state.filters.day = cell.getAttribute('data-day');
+        syncDayPill();
+        switchView('trades');
+      };
+      cell.addEventListener('click', go);
+      cell.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); }
+      });
+    });
+  }
+
+  function syncDayPill() {
+    var pill = $('#f-day-pill');
+    if (state.filters.day) {
+      $('#f-day-label').textContent = state.filters.day;
+      pill.classList.remove('hidden');
+    } else {
+      pill.classList.add('hidden');
+    }
+  }
+
+  function shiftMonth(delta) {
+    if (!state.cal) state.cal = defaultCalMonth();
+    var d = new Date(state.cal.y, state.cal.m + delta, 1);
+    state.cal = { y: d.getFullYear(), m: d.getMonth() };
+    render();
   }
 
   /* ------------------------------ analytics ----------------------------- */
@@ -3333,7 +3695,9 @@ tr:hover .row-btn { opacity: 1; }
   }
 
   function readFilters() {
+    var day = state.filters.day;      // owned by the calendar, not the filter bar
     state.filters = {
+      day: day,
       search: $('#f-search').value,
       account: $('#f-account').value,
       from: $('#f-from').value,
@@ -3344,6 +3708,7 @@ tr:hover .row-btn { opacity: 1; }
       strategy: $('#f-strategy').value,
       symbol: $('#f-symbol').value
     };
+    syncDayPill();
     render();
   }
 
@@ -3374,10 +3739,24 @@ tr:hover .row-btn { opacity: 1; }
      '#f-strategy', '#f-symbol'].forEach(function (sel) {
       $(sel).addEventListener('change', readFilters);
     });
+    $('#cal-prev').addEventListener('click', function () { shiftMonth(-1); });
+    $('#cal-next').addEventListener('click', function () { shiftMonth(1); });
+    $('#cal-today').addEventListener('click', function () {
+      var n = new Date();
+      state.cal = { y: n.getFullYear(), m: n.getMonth() };
+      render();
+    });
+    $('#f-day-pill').addEventListener('click', function () {
+      state.filters.day = '';
+      syncDayPill();
+      render();
+    });
+
     $('#f-clear').addEventListener('click', function () {
       ['#f-search', '#f-from', '#f-to'].forEach(function (s) { $(s).value = ''; });
       ['#f-account', '#f-direction', '#f-status', '#f-result', '#f-strategy', '#f-symbol']
         .forEach(function (s) { $(s).value = ''; });
+      state.filters.day = '';
       readFilters();
     });
 

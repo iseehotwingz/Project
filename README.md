@@ -16,6 +16,12 @@ start index.html         # Windows
 max drawdown, open risk and current streak, above an equity curve (in currency
 or in R), monthly P&L, the win/loss split and an underwater drawdown plot.
 
+**Calendar** — a month grid of daily net P&L, coloured by result, with the
+trade count and the setups used on each day, weekly totals down the side and
+the month's total in the header. Click any day to drop into exactly the trades
+behind it. Days are bucketed by the date the P&L was realised, the same moment
+the equity curve and monthly chart order by, so every view agrees.
+
 **Trade log** — every trade with computed net P&L, R multiple, return and
 holding time. Sortable, filterable by date range, account, side, status,
 result, setup, symbol, and free-text search across notes and tags.
@@ -172,6 +178,7 @@ npm run seed
 | Max drawdown | largest peak-to-trough fall of the equity curve, ordered by exit time |
 | SQN | mean trade ÷ std dev × √n |
 | Breakeven | net P&L within a rounding tolerance of zero — counted separately, excluded from win rate |
+| Calendar day | the day a trade's P&L was realised: its exit, or its entry while still open |
 
 Open trades are counted and contribute to open risk, but never to realised
 performance. R-based metrics only cover trades that recorded a stop, and the
@@ -184,8 +191,8 @@ whole.
 npm test
 ```
 
-28 tests over the P&L maths, aggregate statistics, drawdown, streaks, grouping,
-CSV round-tripping and date handling.
+32 tests over the P&L maths, aggregate statistics, drawdown, streaks, grouping,
+daily calendar buckets, CSV round-tripping and date handling.
 
 ## Layout
 
@@ -217,5 +224,6 @@ labels as well as by colour.
 ## Keyboard
 
 - `n` — log a new trade
+- `Enter` / `Space` — open the focused calendar day
 - `/` — jump to search
 - `Esc` — close the dialog
