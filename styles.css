@@ -443,10 +443,13 @@ tr:hover .row-btn { opacity: 1; }
 
 .acct-row {
   display: flex; align-items: center; gap: 8px;
+  flex-wrap: wrap;
   padding: 8px 0;
   border-bottom: 1px solid var(--border-soft);
 }
-.acct-row .acct-name { font-weight: 600; flex: 1; }
+/* min-width stops a two-word account name breaking mid-phrase in a narrow panel. */
+.acct-row .acct-name { font-weight: 600; flex: 1 1 auto; min-width: 110px; }
+.acct-row input[data-balance] { width: 110px; flex: 0 0 auto; }
 
 /* -------------------------------- toasts -------------------------------- */
 

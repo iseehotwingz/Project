@@ -58,6 +58,22 @@ which needs a real URL (the file is already local, so it hardly matters).
 
 **3. Just open it.** Any browser, any device, straight off disk.
 
+## Use it on a PC
+
+The hosted URL is the whole answer — open it in Chrome, Edge, Firefox or Safari
+and it runs. No install, no Node, no server.
+
+Chrome and Edge will also install it as a desktop app: open the URL and click
+the install icon at the right of the address bar (or menu → *Cast, save and
+share → Install page as app*). You get a windowed app with its own icon and the
+same offline caching as the phone.
+
+Prefer a file you own outright? Download `dist/trading-journal.html` and
+double-click it. One file, works with no network at all.
+
+Remember that each browser keeps its own storage, so your PC starts empty:
+**Settings → Data → Import** pulls your journal across in one click.
+
 Phones get larger controls automatically: 44px minimum tap targets, 16px inputs
 so iOS doesn't zoom when you focus a field, a full-width bottom sheet for the
 trade dialog, and safe-area padding around the notch and home indicator. None
