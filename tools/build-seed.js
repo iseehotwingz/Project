@@ -18,7 +18,7 @@ const ACCOUNT = 'MT5 XAUUSD';
 
 // MT5's summary covers the LIFETIME of the account, including the period
 // before the fresh start, so its profit figure is not this journal's.
-const MT5 = { deposit: 432.00, withdrawal: -560.00, profit: 638.21, balance: 510.21 };
+const MT5 = { deposit: 432.00, withdrawal: -560.00, profit: 738.08, balance: 610.08 };
 
 // The fresh start: "Int. Trans. (Add Funds)" on 2026.09.18 12:20:54. The old
 // account had not been withdrawn to exactly zero, so the real opening equity
@@ -52,7 +52,25 @@ const DEALS = [
   [0.02, 'buy',  4255.22, 4252.28,  '2026-09-24 12:43:33',  -5.88],
   [0.05, 'buy',  4254.25, 4252.31,  '2026-09-24 12:43:33',  -9.70],
   [0.05, 'buy',  4253.26, 4252.37,  '2026-09-24 12:43:33',  -4.45],
-  [0.05, 'buy',  4252.10, 4263.448, '2026-09-24 17:58:15',  56.74]
+  [0.05, 'buy',  4252.10, 4263.448, '2026-09-24 17:58:15',  56.74],
+
+  // --- 2026.09.25 -------------------------------------------------------
+  [0.02, 'sell', 4291.24, 4291.02,  '2026-09-25 11:44:26',   0.44],
+  [0.02, 'sell', 4286.51, 4291.55,  '2026-09-25 11:44:37', -10.08],
+  [0.04, 'sell', 4290.74, 4305.84,  '2026-09-25 13:13:42', -60.40],
+  [0.05, 'sell', 4304.65, 4305.72,  '2026-09-25 13:44:23',  -5.35],
+  [0.05, 'buy',  4306.22, 4306.33,  '2026-09-25 14:28:33',   0.55],
+  [0.05, 'buy',  4304.72, 4304.81,  '2026-09-25 14:28:56',   0.45],
+  [0.05, 'buy',  4306.38, 4299.36,  '2026-09-25 15:13:50', -35.10],
+  [0.05, 'buy',  4303.27, 4299.23,  '2026-09-25 15:13:50', -20.20],
+  [0.05, 'buy',  4301.56, 4299.43,  '2026-09-25 15:13:50', -10.65],
+  [0.05, 'sell', 4306.70, 4279.24,  '2026-09-25 16:35:41', 137.30],
+  [0.05, 'sell', 4298.47, 4283.06,  '2026-09-25 16:38:48',  77.05],
+  // Listed as "sell 0.01 / 0.05": a partial close. Only the 0.01 lot actually
+  // closed is realised, and the profit column confirms the size — a 25.86
+  // point move returning 25.86 is one ounce, not five. The other 0.04 stayed
+  // open, so it is not a journal row yet.
+  [0.01, 'sell', 4308.53, 4282.67,  '2026-09-25 16:39:00',  25.86]
 ];
 
 // Guard against the same deal being transcribed twice from overlapping

@@ -386,11 +386,12 @@ test('a different fill gets a different identity', () => {
 });
 
 test('the seeded MT5 deals are all distinct', () => {
-  // Five of them close at the very same second, so this is a real risk.
+  // Several close at the very same second, so collisions are a real risk.
+  // Asserted against the file's own length so adding trades cannot break it.
   const csv = require('fs').readFileSync(__dirname + '/../data/my-trades.csv', 'utf8');
   const rows = CSV.toTrades(csv).trades;
-  assert.equal(rows.length, 25);
-  assert.equal(new Set(rows.map(t => t.externalId)).size, 25);
+  assert.ok(rows.length >= 25, `expected the seed to hold trades, got ${rows.length}`);
+  assert.equal(new Set(rows.map(t => t.externalId)).size, rows.length);
 });
 
 test('re-importing the identical export adds nothing', () => {
@@ -416,6 +417,6 @@ test('a grown export adds only the new trades', () => {
   ]);
 
   const fresh = grown.filter(t => !heldKeys.has(U.externalKey(t)));
-  assert.equal(fresh.length, 2);
-  assert.equal(grown.length, 27);
+  assert.equal(fresh.length, 2);                       // only the two new fills
+  assert.equal(grown.length, held.length + 2);
 });
