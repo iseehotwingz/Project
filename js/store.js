@@ -26,8 +26,11 @@
       settings: {
         currency: '$',
         riskPct: 1,
-        syncUrl: '',
-        autoSync: false,
+        // On by default and pointed at the journal's own published data file.
+        // Existing installs pick this up through migrate(), which fills in
+        // settings they were saved before this option existed.
+        syncUrl: 'data/my-trades.csv',
+        autoSync: true,
         theme: 'dark',
         strategies: DEFAULT_STRATEGIES.slice(),
         mistakeTags: DEFAULT_MISTAKES.slice()

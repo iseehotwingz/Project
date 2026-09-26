@@ -145,6 +145,15 @@
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   }
 
+  /**
+   * Defeat every cache layer on the way to trade data: the HTTP cache, any
+   * proxy, and the service worker (whose cache.match() keys on the URL, so a
+   * unique URL is the only reliable way past it).
+   */
+  function freshUrl(u) {
+    return u + (u.indexOf('?') >= 0 ? '&' : '?') + '_=' + Date.now();
+  }
+
   function cur() { return S.settings().currency || '$'; }
   /** Compact money for chart axes and tight tiles: -$4.1k. */
   function shortCur(n) { return CH.money(cur())(n); }
@@ -669,10 +678,24 @@
       });
     });
 
+    renderSyncStatus();
+
     var bytes = S.approxBytes();
     $('#storage-info').textContent = S.trades().length + ' trades · about ' +
       (bytes > 1024 ? (bytes / 1024).toFixed(1) + ' KB' : bytes + ' bytes') + ' stored' +
       (S.available ? '' : ' · WARNING: local storage is unavailable, changes will not persist');
+  }
+
+  function renderSyncStatus() {
+    var el = $('#sync-status');
+    if (!el) return;
+    var st = S.settings();
+    if (!st.autoSync) { el.textContent = 'Auto-sync is off.'; return; }
+    if (!st.lastSync) { el.textContent = 'Auto-sync is on. Not checked yet.'; return; }
+    el.textContent = st.lastSyncError
+      ? 'Last check ' + U.fmtDate(st.lastSync, true) + ' failed: ' + st.lastSyncError
+      : 'Last checked ' + U.fmtDate(st.lastSync, true) +
+        ' · ' + (st.lastSyncCount || 0) + ' trades seen at the sync address';
   }
 
   /* -------------------------------- dialog ------------------------------ */
@@ -970,7 +993,7 @@
     btn.textContent = 'Loading…';
     var done = function () { btn.disabled = false; btn.textContent = label; };
 
-    fetch(url, { cache: 'no-store' })
+    fetch(freshUrl(url), { cache: 'no-store' })
       .then(function (r) {
         if (!r.ok) throw new Error('server returned ' + r.status);
         return r.text();
@@ -1003,7 +1026,7 @@
     if (!st.autoSync || !st.syncUrl) return;
     if (location.protocol === 'file:' && !/^https?:/i.test(st.syncUrl)) return;
 
-    fetch(st.syncUrl, { cache: 'no-store' })
+    fetch(freshUrl(st.syncUrl), { cache: 'no-store' })
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
       .then(function (text) {
         var trades;
@@ -1018,14 +1041,19 @@
         if (!trades.length) return;
 
         var r2 = S.mergeMany(trades);
-        if (!r2.added && !r2.updated) return;        // stay quiet when nothing changed
+        S.setSettings({ lastSync: Date.now(), lastSyncCount: trades.length,
+                        lastSyncError: '' });
+        if (!r2.added && !r2.updated) { renderSyncStatus(); return; }  // quiet when unchanged
         refreshOptions();
         render();
         toast('Synced: ' + r2.added + ' new' +
               (r2.updated ? ', ' + r2.updated + ' updated' : ''), 'ok');
       })
       .catch(function (e) {
-        // A failed background sync must never get in the way of using the app.
+        // A failed background sync must never get in the way of using the app,
+        // but it should be visible in Settings rather than silently invisible.
+        S.setSettings({ lastSyncError: e.message, lastSync: Date.now() });
+        renderSyncStatus();
         console.warn('Auto-sync skipped:', e.message);
       });
   }

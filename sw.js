@@ -6,7 +6,7 @@
    Your trades are NOT here — they live in localStorage, which this service
    worker never touches. Clearing the cache costs you nothing but a re-download.
 --------------------------------------------------------------------------- */
-const CACHE = 'trading-journal-v2';
+const CACHE = 'trading-journal-v3';
 const SHELL = [
   './', './index.html', './styles.css',
   './js/util.js', './js/store.js', './js/calc.js', './js/charts.js',
@@ -36,7 +36,35 @@ self.addEventListener('activate', e => {
  */
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
-  if (new URL(e.request.url).origin !== location.origin) return;
+  const url = new URL(e.request.url);
+  if (url.origin !== location.origin) return;
+
+  /*
+   * Trade data must never come from the cache first. Stale-while-revalidate is
+   * right for the app shell — an old copy of a script still works — but it is
+   * wrong for data/: serving yesterday's CSV means a sync silently reports
+   * nothing new. cache.match() keys on the URL and ignores a request's
+   * `no-store`, so asking for fresh data is not enough on its own; the service
+   * worker has to stand aside.
+   */
+  const isData = url.pathname.includes('/data/') ||
+                 e.request.cache === 'no-store' || e.request.cache === 'reload';
+
+  if (isData) {
+    e.respondWith(
+      fetch(e.request)
+        .then(res => {
+          if (res && res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then(c => c.put(e.request, copy)).catch(() => {});
+          }
+          return res;
+        })
+        // Offline: a cached copy beats nothing at all.
+        .catch(() => caches.open(CACHE).then(c => c.match(e.request)))
+    );
+    return;
+  }
 
   e.respondWith(caches.open(CACHE).then(cache =>
     cache.match(e.request).then(hit => {
